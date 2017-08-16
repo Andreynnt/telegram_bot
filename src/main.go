@@ -1,28 +1,38 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"os"
-	"strings"
+	"log"
+	"gopkg.in/telegram-bot-api.v4"
+	"../config"
 )
 
 func main() {
-	for _, url := range os.Args[1:]{
-		if !(strings.HasPrefix(url, "http://")){
-			url = "http://" + url
-		}
-		resp, err := http.Get(url)
-		if err != nil{
-			fmt.Fprintf(os.Stderr, "fetch: %v\n", err)
-			return
-		}
-		st := resp.Status
-		fmt.Printf("%s\n", st)
-		resp.Body.Close()
-		st = resp.Status
-		fmt.Printf("After closing: %s\n", st)
+	settings, err := config.Read("../config/config.json")
+
+	bot, err := tgbotapi.NewBotAPI(settings.Token)
+	if err != nil {
+		log.Panic(err)
 	}
 
-}
+	bot.Debug = true
 
+	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates, err := bot.GetUpdatesChan(u)
+
+	for update := range updates {
+		if update.Message == nil {
+			continue
+		}
+
+		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+		msg.ReplyToMessageID = update.Message.MessageID
+
+		bot.Send(msg)
+	}
+}
